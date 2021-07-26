@@ -57,6 +57,8 @@ abstract class PluggableSSO extends PluggableAuth {
 	public function authenticate(
 		&$identity, &$username, &$realname, &$email, &$errorMessage
 	) {
+		$this->authRequest();
+
 		if ( $identity === null && $username ) {
 			$identity = User::idFromName( $username );
 		}
@@ -89,6 +91,25 @@ abstract class PluggableSSO extends PluggableAuth {
 
 		$_SESSION[$session_variable] = $identity;
 		return true;
+	}
+
+	public function authRequest()
+	{
+		$nonce = hash('sha512', mt_rand().time());
+		$nonceExpire = time() + 120;
+		$this->addNonce($nonce, $nonceExpire);
+		$this->setCookie($nonce, $nonceExpire);
+		$payload = base64_encode(http_build_query(array(
+			'nonce' => $nonce,
+			'return_sso_url' => 'https://wiki.scanlines.xyz/wiki/Special:PluggableAuthLogin'
+		)));
+		$request = array(
+			'sso' => $payload,
+			'sig' => hash_hmac('sha256', $payload, '2vGDjcd5FNyN')
+		);
+		$url = 'https://scanlines.xyz/session/sso_provider?'.http_build_query($request);
+		header('Location: '.$url);
+		echo '<a href='.$url.'>Sign in with Discourse</a><pre>';
 	}
 
 	/**
